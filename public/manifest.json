@@ -1,0 +1,22 @@
+{
+  "name": "SoccerPredict",
+  "short_name": "Predict",
+  "description": "AI-powered soccer match predictions",
+  "theme_color": "#1d4ed8",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "icons/192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
