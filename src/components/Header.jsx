@@ -6,6 +6,8 @@ export default function Header({ league, setLeague }) {
         <img
           src="/assets/logo.png"
           alt="SoccerPredict"
+          width="32"
+          height="32"
           className="w-8 h-8 mr-2 rounded-full object-contain"
         />
         <h1 className="text-xl font-bold">⚽ SoccerPredict</h1>
