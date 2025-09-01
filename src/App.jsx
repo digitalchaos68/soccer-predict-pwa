@@ -49,8 +49,8 @@ export default function App() {
 
       {/* Content */}
       <div className="pb-16 px-4 pt-2">
-        {activeTab === 'upcoming' && <Upcoming matches={data.upcoming} />}
-        {activeTab === 'history' && <History matches={data.history} />}
+        {activeTab === 'upcoming' && <Upcoming league={league} />}
+        {activeTab === 'history' && <History league={league} />}
         {activeTab === 'stats' && <Stats correct={correct} incorrect={incorrect} accuracy={accuracy} />}
       </div>
 

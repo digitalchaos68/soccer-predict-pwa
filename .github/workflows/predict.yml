@@ -1,0 +1,41 @@
+name: Run Predictions Weekly
+
+on:
+  workflow_dispatch:  # Allows manual trigger
+  schedule:
+    - cron: '0 8 * * 1'  # Every Monday at 8:00 AM UTC
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    env:
+      FOOTBALL_DATA_API_KEY: ${{ secrets.FOOTBALL_DATA_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      # 🛠️ Setup
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 📦 Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install requests pandas joblib scikit-learn numpy python-dotenv
+
+      # 🔐 Load .env from secrets (optional, if you use dotenv)
+      - name: Create .env file
+        run: |
+          echo "FOOTBALL_DATA_API_KEY=${{ secrets.FOOTBALL_DATA_API_KEY }}" > .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+
+      # 🏃 Run prediction script
+      - name: Run predict_upcoming.py
+        run: python py/predict_upcoming.py
+        working-directory: .
