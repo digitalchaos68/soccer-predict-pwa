@@ -1,11 +1,11 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vite'; // ✅ From Vite
 import react from '@vitejs/plugin-react';
-import { defineConfig as definePWAConfig } from 'vite-plugin-pwa';
+import { defineConfig as definePWAConfig } from 'vite-plugin-pwa'; // ✅ Rename to avoid conflict
 
 export default defineConfig({
   plugins: [
     react(),
-    definePWAConfig({
+    definePWAConfig({ // ✅ Use renamed function
       registerType: 'autoUpdate',
       devOptions: {
         enabled: true
