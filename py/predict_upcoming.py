@@ -12,15 +12,17 @@ from scipy.stats import poisson
 import numpy as np
 from urllib.parse import quote
 
-# ====================
-# Load Environment Variables
-# ====================
-# Try to load .env file (local development)
-if os.path.exists('.env'):
-    load_dotenv()
-    print("✅ Loaded .env file (local development)")
+# Detect if running in GitHub Actions
+IN_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
+
+if IN_GITHUB_ACTIONS:
+    print("☁️ Running in GitHub Actions (using secrets directly)")
 else:
-    print("⚠️ No .env file found — using GitHub Secrets (production)")
+    if os.path.exists('.env'):
+        load_dotenv()
+        print("✅ Loaded .env file (local development)")
+    else:
+        print("⚠️ No .env file found — running in unknown environment")
 
 # ====================
 # CONFIG (from .env or GitHub Secrets)
@@ -28,6 +30,16 @@ else:
 API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+
+# Validate config
+if not API_KEY:
+    raise ValueError("❌ Missing FOOTBALL_DATA_API_KEY")
+if not SUPABASE_URL:
+    raise ValueError("❌ Missing SUPABASE_URL")
+if not SUPABASE_KEY:
+    raise ValueError("❌ Missing SUPABASE_ANON_KEY")
+
+print("✅ All environment variables loaded")
 
 # Validate config
 if not all([API_KEY, SUPABASE_URL, SUPABASE_KEY]):
