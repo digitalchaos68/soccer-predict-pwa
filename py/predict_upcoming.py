@@ -1,5 +1,5 @@
 # predict_upcoming.py
-# Predicts upcoming matches using model.pkl and secure .env credentials
+# Predicts upcoming matches using model.pkl and secure .env or GitHub Secrets
 
 import json
 import requests
@@ -10,25 +10,28 @@ import os
 from dotenv import load_dotenv
 from scipy.stats import poisson
 import numpy as np
-
 from urllib.parse import quote
 
 # ====================
 # Load Environment Variables
 # ====================
-load_dotenv()  # Load from .env file
+# Try to load .env file (local development)
+if os.path.exists('.env'):
+    load_dotenv()
+    print("✅ Loaded .env file (local development)")
+else:
+    print("⚠️ No .env file found — using GitHub Secrets (production)")
 
 # ====================
-# CONFIG (from .env)
+# CONFIG (from .env or GitHub Secrets)
 # ====================
 API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
-MODEL_FILE = 'model.pkl'
 
 # Validate config
 if not all([API_KEY, SUPABASE_URL, SUPABASE_KEY]):
-    raise ValueError("❌ Missing required environment variables in .env file")
+    raise ValueError("❌ Missing required environment variables in .env or GitHub Secrets")
 
 # Use the base URL from .env
 SUPABASE_REST_URL = f"{SUPABASE_URL}/rest/v1"
@@ -42,17 +45,16 @@ SUPABASE_HEADERS = {
 
 # Load trained model
 print("🧠 Loading AI model...")
-model = joblib.load(MODEL_FILE)
-print("🔍 SUPABASE_URL:", SUPABASE_URL)
-print("🔍 SUPABASE_REST_URL:", SUPABASE_REST_URL)
+model = joblib.load('model.pkl')
+
 # Load team form data
 try:
     with open('../data/team_form_2023.json', 'r') as f:
-        team_form_data = json.load(f)
+        team_form = json.load(f)
     print("✅ Loaded team form data")
 except FileNotFoundError:
     print("❌ File '../data/team_form_2023.json' not found. Run 'python calculate_form.py' first.")
-    team_form_data = {}
+    team_form = {}
 
 def normalize_team_name(name):
     """Convert full API team name to short name used in team_form_2023.json"""
@@ -84,7 +86,6 @@ def normalize_team_name(name):
     }
     return mapping.get(name, name)
 
-
 # ====================
 # Fetch Upcoming Fixtures
 # ====================
@@ -100,13 +101,13 @@ def fetch_upcoming_fixtures():
     matches = []
     for match in data['matches']:
         # Extract league name from API
-        league_name = match['competition']['name']  # ← This is "Premier League"
+        league_name = match['competition']['name']
 
         matches.append({
             'date': match['utcDate'],
             'home_team': match['homeTeam']['name'],
             'away_team': match['awayTeam']['name'],
-            'league': league_name  # ✅ Use dynamic value
+            'league': league_name
         })
     
     print(f"✅ Fetched {len(matches)} upcoming matches")
@@ -115,19 +116,6 @@ def fetch_upcoming_fixtures():
 # ====================
 # Simulate Team Form & ELO for Prediction
 # ====================
-def get_team_strength(team_name):
-    # Placeholder ELO ratings (in real app, update weekly)
-    elo_ratings = {
-        "Arsenal": 1620, "Manchester City": 1700, "Liverpool": 1650,
-        "Aston Villa": 1580, "Newcastle": 1560, "Tottenham": 1590,
-        "Chelsea": 1550, "Manchester United": 1520, "Fulham": 1510,
-        "Brighton": 1540, "Crystal Palace": 1500, "Everton": 1490,
-        "Nottingham Forest": 1505, "Brentford": 1530, "West Ham": 1515,
-        "Wolves": 1500, "Bournemouth": 1480, "Sheffield Utd": 1450,
-        "Luton": 1430, "Burnley": 1440
-    }
-    return elo_ratings.get(team_name, 1500)
-
 def predict_match(home_team, away_team):
     print(f"\n🔍 Predicting: {home_team} vs {away_team}")
 
@@ -211,14 +199,14 @@ def upload_prediction(match, prediction, confidence, score_pred):
         "Prefer": "resolution=merge-duplicates"
     }
 
-    # Normalize team names BEFORE sending to Supabase
+    # Normalize team names before sending to Supabase
     home_team_norm = normalize_team_name(match['home_team'])
     away_team_norm = normalize_team_name(match['away_team'])
 
     payload = {
         "league": match['league'],
-        "home_team": home_team_norm,  # ✅ Use normalized name
-        "away_team": away_team_norm,  # ✅ Use normalized name
+        "home_team": home_team_norm,
+        "away_team": away_team_norm,
         "date": match['date'][:10],
         "prediction": prediction,
         "score_pred": score_pred,
@@ -239,7 +227,6 @@ def upload_prediction(match, prediction, confidence, score_pred):
     print(f"\n🔍 Predicting: {match['home_team']} vs {match['away_team']}")
     print(f"🌐 Check URL: {check_url}")
     print(f"📡 Headers: {dict(headers)}")
-    print(f"🔑 API Key Length: {len(SUPABASE_KEY)}")
     print(f"📄 Payload: {payload}")
 
     try:
@@ -277,10 +264,8 @@ def upload_prediction(match, prediction, confidence, score_pred):
 # Main
 # ====================
 if __name__ == "__main__":
-
-    # Load real team form
-    with open('../data/team_form_2023.json', 'r') as f:
-        team_form = json.load(f)
+    print("🧠 Loading AI model...")
+    model = joblib.load('model.pkl')
 
     print("📅 Fetching upcoming fixtures...")
     matches = fetch_upcoming_fixtures()
