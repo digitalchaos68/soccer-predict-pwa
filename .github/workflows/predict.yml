@@ -39,3 +39,4 @@ jobs:
       - name: Run predict_upcoming.py
         run: python py/predict_upcoming.py
         working-directory: .
+        
