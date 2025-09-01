@@ -1,42 +1,45 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { defineConfig as definePWAConfig } from 'vite-plugin-pwa';
 
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
+    definePWAConfig({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      devOptions: {
+        enabled: true
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+      },
       manifest: {
-        name: 'SoccerPredict',
-        short_name: 'Predict',
-        description: 'AI-powered soccer match predictions',
-        theme_color: '#1d4ed8',
-        background_color: '#ffffff',
-        display: 'standalone',
-        orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        name: 'Soccer Predict PWA',
+        short_name: 'SoccerPredict',
+        description: 'AI-powered football predictions',
+        theme_color: '#ffffff',
         icons: [
           {
-            src: 'icons/192x192.png',
+            src: 'pwa-64x64.png',
+            sizes: '64x64',
+            type: 'image/png'
+          },
+          {
+            src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png',
+            type: 'image/png'
           },
           {
-            src: 'icons/512x512.png',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
-            type: 'image/png',
-          },
-          {
-            src: 'icons/512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable',
-          },
-        ],
-      },
-    }),
+            type: 'image/png'
+          }
+        ]
+      }
+    })
   ],
-})
+  server: {
+    port: 3000,
+    host: true
+  }
+});
