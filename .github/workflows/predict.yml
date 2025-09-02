@@ -38,5 +38,8 @@ jobs:
       # 🏃 Run prediction script
       - name: Run predict_upcoming.py
         run: python py/predict_upcoming.py
+
+      - name: Run fetch_matches.py
+        run: python py/fetch_matches.py
         working-directory: .
         

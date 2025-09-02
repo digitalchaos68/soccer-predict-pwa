@@ -1,218 +1,158 @@
+# fetch_matches.py
+# Fetches actual results from football-data.org and updates Supabase
 
 import requests
 from datetime import datetime, timedelta
-import time
-
-import json
-
-from dotenv import load_dotenv
 import os
-# Load environment variables from .env file
+from dotenv import load_dotenv
+from urllib.parse import quote
+
+# ====================
+# Load Environment Variables
+# ====================
 load_dotenv()
 
-# Now get the keys securely
-API_KEY = os.getenv("API_FOOTBALL_KEY")
+API_KEY = os.getenv("FOOTBALL_DATA_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
 
-# === CONFIG ===
-API_URL = "https://v3.football.api-sports.io"
-SUPABASE_TABLE = "predictions"
+# Validate config
+if not all([API_KEY, SUPABASE_URL, SUPABASE_KEY]):
+    raise ValueError("❌ Missing required environment variables in .env file")
 
-print("API Key:", API_KEY)  # Should show your key
-print("Supabase URL:", SUPABASE_URL)
+# Use the base URL
+SUPABASE_REST_URL = f"{SUPABASE_URL}/rest/v1"
 
-HEADERS = {
-    "x-apisports-key": API_KEY
-}
-
+HEADERS = {"X-Auth-Token": API_KEY}
 SUPABASE_HEADERS = {
-    "apikey": SUPABASE_ANON_KEY,
-    "Content-Type": "application/json",
-    "Authorization": f"Bearer {SUPABASE_ANON_KEY}"
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json"
 }
 
 # Premier League ID
-LEAGUES = {
-    "Premier League": 39,
-    "La Liga": 140,
-    "Serie A": 135,
-    "Bundesliga": 78,
-    "Ligue 1": 61
-}
+PREMIER_LEAGUE_ID = 39
 
-# ====================
-# Fetch matches from API-Football
-# ====================
-def fetch_upcoming_matches(league_id, days=14):
-    endpoint = "/fixtures"
-
-    # Use fixed date in 2023 (since free tier only allows 2021–2023)
-    today = datetime(2023, 3, 20)  # Hardcoded to March 2023
-    end_date = today + timedelta(days=14)
-
-    params = {
-        "league": league_id,
-        "season": 2023,
-        "from": today.strftime("%Y-%m-%d"),
-        "to": end_date.strftime("%Y-%m-%d")
+def normalize_team_name(name):
+    """Convert full API team name to short name used in team_form_2023.json"""
+    mapping = {
+        "Arsenal FC": "Arsenal",
+        "Aston Villa FC": "Aston Villa",
+        "AFC Bournemouth": "Bournemouth",
+        "Brentford FC": "Brentford",
+        "Brighton & Hove Albion FC": "Brighton",
+        "Burnley FC": "Burnley",
+        "Chelsea FC": "Chelsea",
+        "Crystal Palace FC": "Crystal Palace",
+        "Everton FC": "Everton",
+        "Fulham FC": "Fulham",
+        "Leeds United FC": "Leeds United",
+        "Leicester City FC": "Leicester",
+        "Liverpool FC": "Liverpool",
+        "Luton Town FC": "Luton",
+        "Manchester City FC": "Manchester City",
+        "Manchester United FC": "Manchester United",
+        "Newcastle United FC": "Newcastle",
+        "Nottingham Forest FC": "Nottingham Forest",
+        "Sheffield United FC": "Sheffield Utd",
+        "Southampton FC": "Southampton",
+        "Tottenham Hotspur FC": "Tottenham",
+        "West Ham United FC": "West Ham",
+        "Wolverhampton Wanderers FC": "Wolves",
+        "Sunderland AFC": "Sunderland"
     }
+    return mapping.get(name, name)
 
-    print(f"Fetching matches for league {league_id}, season 2023...")
+# ====================
+# Fetch Recent Match Results
+# ====================
+def fetch_recent_results():
+    # Get matches from last 7 days
+    today = datetime.now()
+    from_date = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+    to_date = today.strftime("%Y-%m-%d")
 
-    response = requests.get(f"{API_URL}{endpoint}", headers=HEADERS, params=params)
-
+    url = f"https://api.football-data.org/v4/competitions/PL/matches?dateFrom={from_date}&dateTo={to_date}"
+    response = requests.get(url, headers=HEADERS)
+    
     if response.status_code != 200:
-        print(f"❌ API Error {response.status_code}: {response.text}")
+        print("❌ Error fetching results:", response.text)
         return []
 
     data = response.json()
-
-    if 'response' not in data:
-        print("⚠️ No 'response' in data:", data)
-        return []
-
-    matches = []
-    for fixture in data['response']:
-        match = {
-            "home_team": fixture['teams']['home']['name'],
-            "away_team": fixture['teams']['away']['name'],
-            "date": fixture['fixture']['date'][:10],
-            "league": next(name for name, id in LEAGUES.items() if id == league_id)
-        }
-        matches.append(match)
-
-    print(f"✅ Fetched {len(matches)} matches for league {league_id}")
-    return matches
-
-# ====================
-# Upload to Supabase
-# ====================
-def upsert_predictions(matches):
-    url = f"{SUPABASE_URL}/rest/v1/{SUPABASE_TABLE}"
-    
-    for match in matches:
-        # Only generate AI prediction if needed (optional)
-        confidence = 60 + (hash(match['home_team']) % 20)
-        prediction = "Home Win" if hash(match['home_team']) % 3 == 0 else \
-                    "Away Win" if hash(match['home_team']) % 3 == 1 else "Draw"
-        score_pred = "2-1" if prediction == "Home Win" else "1-2" if prediction == "Away Win" else "1-1"
-
-        payload = {
-            "league": match["league"],
-            "home_team": match["home_team"],
-            "away_team": match["away_team"],
-            "date": match["date"],
-            "prediction": prediction,
-            "score_pred": score_pred,
-            "confidence": confidence,
-            "actual_result": match.get("actual_result"),   # ✅ Fixed
-            "score_actual": match.get("score_actual"),     # ✅ Fixed
-            "correct": match.get("correct")
-        }
-
-        # Check if match already exists
-        existing = requests.get(
-            url,
-            headers=SUPABASE_HEADERS,
-            params={
-                "league": "eq." + match["league"],
-                "home_team": "eq." + match["home_team"],
-                "away_team": "eq." + match["away_team"],
-                "date": "eq." + match["date"]
-            }
-        )
-
-        if existing.status_code == 200 and len(existing.json()) == 0:
-            # Insert new match
-            response = requests.post(url, headers=SUPABASE_HEADERS, json=payload)
-            if response.status_code in [200, 201]:
-                print(f"✅ Added: {match['home_team']} vs {match['away_team']} ({match['date']})")
+    results = []
+    for match in data['matches']:
+        if match['status'] == 'FINISHED':
+            home_score = match['score']['fullTime']['home']
+            away_score = match['score']['fullTime']['away']
+            
+            if home_score > away_score:
+                result = "Home Win"
+            elif home_score < away_score:
+                result = "Away Win"
             else:
-                print(f"❌ Failed to add {match['home_team']} vs {match['away_team']}: {response.text}")
-        else:
-            print(f"🔁 Already exists: {match['home_team']} vs {match['away_team']}")
+                result = "Draw"
 
+            results.append({
+                'home_team': normalize_team_name(match['homeTeam']['name']),
+                'away_team': normalize_team_name(match['awayTeam']['name']),
+                'date': match['utcDate'][:10],
+                'actual_result': result,
+                'score_actual': f"{home_score}-{away_score}"
+            })
+    
+    print(f"✅ Fetched {len(results)} finished matches")
+    return results
 
+# ====================
+# Update Predictions with Actual Results
+# ====================
+def update_predictions_with_results():
+    results = fetch_recent_results()
+    updated = 0
 
-# Add this function to fetch_matches.py
-def delete_all_matches():
-    url = f"{SUPABASE_URL}/rest/v1/predictions"
-    response = requests.delete(url, headers=SUPABASE_HEADERS)
-    print("🗑️ Deleted all matches:", response.status_code)
+    for result in results:
+        # URL-encode team names
+        home_encoded = quote(result['home_team'])
+        away_encoded = quote(result['away_team'])
+        date_encoded = quote(result['date'])
 
+        check_url = f"{SUPABASE_REST_URL}/predictions?home_team=eq.{home_encoded}&away_team=eq.{away_encoded}&date=eq.{date_encoded}"
+        
+        try:
+            response = requests.get(check_url, headers=SUPABASE_HEADERS)
+            if response.status_code == 200 and len(response.json()) > 0:
+                record = response.json()[0]
+                
+                # Determine if prediction was correct
+                correct = record['prediction'] == result['actual_result']
+                
+                # Update record
+                update_url = f"{SUPABASE_REST_URL}/predictions?id=eq.{record['id']}"
+                payload = {
+                    "actual_result": result['actual_result'],
+                    "score_actual": result['score_actual'],
+                    "correct": correct,
+                    "updated_at": datetime.now().isoformat()
+                }
+                
+                patch_response = requests.patch(update_url, json=payload, headers=SUPABASE_HEADERS)
+                if patch_response.status_code in [200, 204]:
+                    print(f"✅ Updated: {result['home_team']} vs {result['away_team']} → {result['actual_result']} ({'✅ Correct' if correct else '❌ Wrong'})")
+                    updated += 1
+                else:
+                    print(f"❌ Failed to update: {patch_response.text}")
+            else:
+                print(f"⚠️ No prediction found for {result['home_team']} vs {result['away_team']} on {result['date']}")
+        except Exception as e:
+            print(f"❌ Error updating {result['home_team']} vs {result['away_team']}: {e}")
 
-
-def fetch_historical_matches(league_id):
-    # Only process Premier League (39)
-    if league_id != 39:
-        print(f"Skipping league {league_id}")
-        return []
-
-    try:
-        with open('2023_epl_fixtures.json', 'r', encoding='utf-8') as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        print("❌ File 'data/2023_epl_fixtures.json' not found")
-        return []
-    except json.JSONDecodeError as e:
-        print(f"❌ Invalid JSON: {e}")
-        return []
-
-    if 'response' not in data:
-        print("⚠️ No 'response' in data")
-        return []
-
-    matches = []
-    for fixture in data['response']:
-        # Skip if no goals data
-        if 'goals' not in fixture or fixture['goals']['home'] is None:
-            continue
-
-        home_goals = fixture['goals']['home']
-        away_goals = fixture['goals']['away']
-
-        # Determine actual result
-        if home_goals > away_goals:
-            actual_result = "Home Win"
-        elif home_goals < away_goals:
-            actual_result = "Away Win"
-        else:
-            actual_result = "Draw"
-
-        match = {
-            "league": "Premier League",
-            "home_team": fixture['teams']['home']['name'],
-            "away_team": fixture['teams']['away']['name'],
-            "date": fixture['fixture']['date'][:10],
-            "prediction": "TBD",
-            "score_pred": "1-1",
-            "confidence": 50,
-            "actual_result": actual_result,
-            "score_actual": f"{home_goals}-{away_goals}",
-            "correct": None
-        }
-        matches.append(match)
-
-    print(f"✅ Loaded {len(matches)} matches from local file")
-    return matches
+    print(f"📊 Updated {updated} matches with actual results")
 
 # ====================
 # Main
 # ====================
-def main():
-# Call it before upserting
-    delete_all_matches()
-
-    all_matches = []
-    for league_name, league_id in LEAGUES.items():
-        time.sleep(1)
-        matches = fetch_historical_matches(league_id)  # Uses local file
-        all_matches.extend(matches)
-
-
-    upsert_predictions(all_matches)
-    print(f"\n✅ Total matches processed: {len(all_matches)}")
-
 if __name__ == "__main__":
-    main()
+    print("📅 Fetching recent match results...")
+    update_predictions_with_results()
+    print("🚀 Prediction accuracy tracking complete!")
