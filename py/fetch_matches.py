@@ -1,6 +1,4 @@
-# fetch_matches.py
-# Fetches actual results from football-data.org and updates Supabase
-
+# py/fetch_matches.py
 import requests
 from datetime import datetime, timedelta
 import os
@@ -29,9 +27,6 @@ SUPABASE_HEADERS = {
     "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json"
 }
-
-# Premier League ID
-PREMIER_LEAGUE_ID = 39
 
 def normalize_team_name(name):
     """Convert full API team name to short name used in team_form_2023.json"""

@@ -12,17 +12,24 @@ from scipy.stats import poisson
 import numpy as np
 from urllib.parse import quote
 
+
+# Try to load .env from project root
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+env_path = os.path.join(project_root, '.env')
+
+
 # Detect if running in GitHub Actions
 IN_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
 if IN_GITHUB_ACTIONS:
     print("☁️ Running in GitHub Actions (using secrets directly)")
 else:
-    if os.path.exists('.env'):
-        load_dotenv()
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
         print("✅ Loaded .env file (local development)")
     else:
         print("⚠️ No .env file found — running in unknown environment")
+
 
 # ====================
 # CONFIG (from .env or GitHub Secrets)
