@@ -1,3 +1,4 @@
+// src/lib/predictions.js
 import { supabase } from './supabaseClient';
 
 // Normalize full name → short name

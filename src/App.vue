@@ -25,7 +25,8 @@ onMounted(async () => {
         :class="{
           'border-green-500': p.confidence > 65,
           'border-yellow-500': p.confidence >= 50 && p.confidence <= 65,
-          'border-red-500': p.confidence < 50
+          'border-red-500': p.confidence < 50,
+          'bg-gray-50': p.actual_result
         }"
       >
         <div class="flex justify-between text-sm text-gray-500">
@@ -37,6 +38,14 @@ onMounted(async () => {
         <div class="text-sm mt-1">
           🎯 <strong>{{ p.prediction }}</strong> → {{ p.score_pred }} 
           <span class="text-green-600">({{ p.confidence }}%)</span>
+        </div>
+
+        <!-- Show actual result if match is finished -->
+        <div v-if="p.actual_result" class="mt-2 pt-2 border-t text-sm">
+          📊 Actual: {{ p.score_actual }} → {{ p.actual_result }}
+          <span :class="p.correct ? 'text-green-600' : 'text-red-600'">
+            ({{ p.correct ? '✅ Correct' : '❌ Wrong' }})
+          </span>
         </div>
       </div>
     </div>
